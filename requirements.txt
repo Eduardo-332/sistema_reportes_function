@@ -6,4 +6,4 @@ azure-functions
 pandas
 requests
 python-dotenv
-azure-storage-blob
+azure-storage-blob==12.22.0

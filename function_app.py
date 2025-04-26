@@ -5,6 +5,7 @@ import azure.functions as func
 import datetime
 import json
 import requests
+import random
 from dotenv import load_dotenv
 import pandas as pd
 from azure.storage.blob import BlobServiceClient
@@ -35,13 +36,34 @@ def QueueTriggerPokeReport(azqueue: func.QueueMessage):
         request_info = get_request(id)
         pokemon_basic_list = get_pokemons(request_info[0]["type"])
         
+        tamaño_muestra_solicitado = request_info[0].get("samplesize", None)
+
+        es_tamaño_muestra_valido = (
+            tamaño_muestra_solicitado is not None and 
+            isinstance(tamaño_muestra_solicitado, int) and 
+            tamaño_muestra_solicitado > 0 and 
+            tamaño_muestra_solicitado < len(pokemon_basic_list)
+        )
+
+        if es_tamaño_muestra_valido:
+            cantidad_total_pokemons = len(pokemon_basic_list)
+            
+            logger.info(
+                f"Aplicando muestreo aleatorio: seleccionando {tamaño_muestra_solicitado} "
+                f"de un total de {cantidad_total_pokemons} pokémon disponibles"
+            )
+            
+            pokemon_basic_list = random.sample(
+                population=pokemon_basic_list, 
+                k=tamaño_muestra_solicitado
+            )
+        
         detailed_pokemon_list = get_detailed_pokemon_info(pokemon_basic_list)
         
-        # Generar CSV con toda la información 
         pokemon_bytes = generate_detailed_csv_to_blob(detailed_pokemon_list)
         blob_name = f"poke_report_{id}.csv"
         upload_csv_to_blob(blob_name=blob_name, csv_data=pokemon_bytes)
-        logger.info(f"Archivo {blob_name} se subio con exito")
+        logger.info(f"Archivo {blob_name} se subió con éxito")
 
         url_completa = f"https://{STORA_ACCOUNT_NAME}.blob.core.windows.net/{BLOB_CONTAINER_NAME}/{blob_name}"
         update_request(id, "completed", url_completa)
